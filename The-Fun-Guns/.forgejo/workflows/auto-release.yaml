@@ -6,7 +6,7 @@ on:
 
 jobs:
   build_and_publish:
-    runs-on: codeberg-medium
+    runs-on: docker
 
     steps:
       - name: Checkout repository
