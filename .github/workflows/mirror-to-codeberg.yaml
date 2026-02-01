@@ -1,0 +1,29 @@
+name: Mirror to Codeberg
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to Codeberg via SSH
+        uses: yesolutions/mirror-action@v0.7.0
+        with:
+          REMOTE: 'ssh://git@codeberg.org/TheBLABS/The-Fun-Guns.git'
+          # Put your private key and known_hosts into GitHub secrets (see instructions below)
+          GIT_SSH_PRIVATE_KEY: ${{ secrets.CODEBERG_SSH_KEY }}
+          GIT_SSH_KNOWN_HOSTS: ${{ secrets.CODEBERG_KNOWN_HOSTS }}
+          # Mirror everything (branches + tags). Set to "false" if you don't want that.
+          PUSH_ALL_REFS: "true"
+          # Optional: extra git push args. Default is "--tags --force --prune"
+          # GIT_PUSH_ARGS: "--tags --force --prune"
+          # Optional debug
+          # DEBUG: "true"
