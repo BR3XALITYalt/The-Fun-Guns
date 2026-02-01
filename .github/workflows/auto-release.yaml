@@ -1,0 +1,97 @@
+name: Auto Release Zip
+
+# Trigger on push to main, and allow manual runs
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Allow writing tags/releases
+permissions:
+  contents: write
+
+jobs:
+  build_and_publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (fetch all tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next Vx version
+        id: version
+        run: |
+          # fetch tags (already fetched by checkout with fetch-depth:0 but keep this to be safe)
+          git fetch --tags
+
+          # find latest tag matching V<number>
+          LAST_TAG=$(git tag -l "V[0-9]*" | sort -V | tail -n1)
+
+          if [ -z "$LAST_TAG" ]; then
+            NEXT=1
+          else
+            NUM=${LAST_TAG#V}
+            # if NUM is non-numeric fallback to 1
+            if ! printf '%s\n' "$NUM" | grep -Eq '^[0-9]+$'; then
+              NEXT=1
+            else
+              NEXT=$((NUM + 1))
+            fi
+          fi
+
+          RELEASE_TAG="V${NEXT}"
+          ZIP_FILE="the-fun-guns-${RELEASE_TAG}.zip"
+
+          echo "Determined next tag: ${RELEASE_TAG}"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
+          echo "ZIP_FILE=${ZIP_FILE}" >> $GITHUB_ENV
+
+      - name: Create ZIP artifact (exclude docs, DBs, git metadata, vs files, workflows)
+        run: |
+          # remove old zip if present
+          rm -f "${ZIP_FILE}"
+          # zip excluding:
+          #   *.md, LICENSE, *.db, .vs/*, .gitignore, .git/*, .github/* (workflows), *.yaml (optional)
+          zip -r "${ZIP_FILE}" . \
+            -x "*.md" \
+            -x "LICENSE" \
+            -x "*.db" \
+            -x ".vs/*" \
+            -x ".gitignore" \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "*.yaml"
+
+      - name: Create git tag and push
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Create lightweight tag and push
+          git tag "${RELEASE_TAG}"
+          git push origin "${RELEASE_TAG}"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          release_name: The Fun Guns ${{ env.RELEASE_TAG }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release asset (ZIP)
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.ZIP_FILE }}
+          asset_name: ${{ env.ZIP_FILE }}
+          asset_content_type: application/zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
