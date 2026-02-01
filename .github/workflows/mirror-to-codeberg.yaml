@@ -18,10 +18,8 @@ jobs:
         uses: yesolutions/mirror-action@v0.7.0
         with:
           REMOTE: 'ssh://git@codeberg.org/TheBLABS/The-Fun-Guns.git'
-          # Put your private key and known_hosts into GitHub secrets (see instructions below)
           GIT_SSH_PRIVATE_KEY: ${{ secrets.CODEBERG_SSH_KEY }}
-          GIT_SSH_KNOWN_HOSTS: ${{ secrets.CODEBERG_KNOWN_HOSTS }}
-          # Mirror everything (branches + tags). Set to "false" if you don't want that.
+          GIT_SSH_NO_VERIFY_HOST: "true"   # <- skip host verification
           PUSH_ALL_REFS: "true"
           # Optional: extra git push args. Default is "--tags --force --prune"
           # GIT_PUSH_ARGS: "--tags --force --prune"
