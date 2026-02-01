@@ -91,6 +91,7 @@ jobs:
             echo "IS_PRERELEASE=false" >> $GITHUB_ENV
           else
             echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+          fi
 
       - name: Create Release
         id: create_release
