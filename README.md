@@ -9,4 +9,4 @@ This is a collection of different guns I've made while experimenting with SWEPS 
    
 
 ## Releases
-You can download any version from past (or present) builds on the [Releases page.]([https://codeberg.org/TheBLABS/The-Fun-Guns/releases](https://github.com/BR3XALITYalt/The-Fun-Guns/releases))
+You can download any version from past (or present) builds on the [Releases page.](https://codeberg.org/TheBLABS/The-Fun-Guns/releases](https://github.com/BR3XALITYalt/The-Fun-Guns/releases)
