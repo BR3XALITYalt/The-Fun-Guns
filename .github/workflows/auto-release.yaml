@@ -18,41 +18,96 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine next Vx version and changed files
+      - name: Determine next version and changed files
         id: version
         run: |
           set -euo pipefail
 
-          # Determine latest V* tag
-          LAST_TAG=$(git tag -l "V[0-9]*" | sort -V | tail -n1 || true)
+          # Determine latest V* tag (can be Vx or Vx.y)
+          LATEST_TAG=$(git tag -l "V*" | sort -V | tail -n1 || true)
 
-          if [ -z "${LAST_TAG}" ]; then
-            NEXT=1
-            CHANGED=$(git ls-files -z | tr '\0' '\n')
-          else
-            NUM=${LAST_TAG#V}
-            if ! printf '%s\n' "$NUM" | grep -Eq '^[0-9]+$'; then
-              NEXT=1
+          # For manual releases (workflow_dispatch), increment X and reset Y to 0
+          # For automatic releases (push), increment Y on the current X
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            # Manual release - increment X
+            if [ -z "${LATEST_TAG}" ]; then
+              NEXT_X=1
+              NEXT_TAG="V1"
             else
-              NEXT=$((NUM + 1))
+              # Extract X from the tag (strip V and anything after . if present)
+              TAG_WITHOUT_V=${LATEST_TAG#V}
+              X_VALUE=$(echo "${TAG_WITHOUT_V}" | cut -d'.' -f1)
+              if ! printf '%s\n' "$X_VALUE" | grep -Eq '^[0-9]+$'; then
+                NEXT_X=1
+              else
+                NEXT_X=$((X_VALUE + 1))
+              fi
+              NEXT_TAG="V${NEXT_X}"
             fi
-            CHANGED=$(git diff --name-only -z "$LAST_TAG" HEAD | tr '\0' '\n')
+          else
+            # Automatic release - increment Y on current X
+            if [ -z "${LATEST_TAG}" ]; then
+              # No tags yet - start with V1.1 for first automatic release
+              NEXT_TAG="V1.1"
+            else
+              # Check if latest tag is in Vx or Vx.y format
+              if [[ "${LATEST_TAG}" =~ ^V[0-9]+\.[0-9]+$ ]]; then
+                # It's already Vx.y format - increment Y
+                TAG_WITHOUT_V=${LATEST_TAG#V}
+                X_VALUE=$(echo "${TAG_WITHOUT_V}" | cut -d'.' -f1)
+                Y_VALUE=$(echo "${TAG_WITHOUT_V}" | cut -d'.' -f2)
+                
+                if ! printf '%s\n' "$Y_VALUE" | grep -Eq '^[0-9]+$'; then
+                  NEXT_Y=1
+                else
+                  NEXT_Y=$((Y_VALUE + 1))
+                fi
+                NEXT_TAG="V${X_VALUE}.${NEXT_Y}"
+              else
+                # It's Vx format - this must be from a manual release
+                # Start auto releases for this X with .1
+                TAG_WITHOUT_V=${LATEST_TAG#V}
+                X_VALUE=${TAG_WITHOUT_V}
+                NEXT_TAG="V${X_VALUE}.1"
+              fi
+            fi
           fi
 
-          RELEASE_TAG="V${NEXT}"
+          RELEASE_TAG="${NEXT_TAG}"
           ZIP_FILE="the-fun-guns-${RELEASE_TAG}.zip"
 
           echo "Determined next tag: ${RELEASE_TAG}"
           echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
           echo "ZIP_FILE=${ZIP_FILE}" >> $GITHUB_ENV
 
+          # Find the last user-engaged release (Vx without .y) for changelog purposes
+          LAST_USER_RELEASE=$(git tag -l "V[0-9]*" | grep -E '^V[0-9]+$' | sort -V | tail -n1 || true)
+
+          # For change detection, we compare with the last tag (for automatic releases)
+          # or with the last user release (for manual releases)
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            # Manual release: compare with last user release
+            COMPARE_TAG="${LAST_USER_RELEASE}"
+          else
+            # Automatic release: compare with last tag (any type)
+            COMPARE_TAG="${LATEST_TAG}"
+          fi
+
+          # Get changed files
+          if [ -z "${COMPARE_TAG}" ]; then
+            CHANGED=$(git ls-files -z | tr '\0' '\n')
+          else
+            CHANGED=$(git diff --name-only -z "$COMPARE_TAG" HEAD | tr '\0' '\n')
+          fi
+
           # Build release body based on trigger type
           RELEASE_BODY_FILE=release_body.txt
           
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             # Manual trigger - create changelog with commit messages and contributors
+            # Since the last user-engaged release (Vx)
             {
-              echo "Changelog since ${LAST_TAG:-the beginning}:"
+              echo "Changelog since ${LAST_USER_RELEASE:-the beginning}:"
               echo ""
               if [ -z "${CHANGED}" ]; then
                 echo "(no file changes detected)"
@@ -61,18 +116,25 @@ jobs:
                 echo "### File Changes:"
                 while IFS= read -r -d '' file; do
                   if [ -n "$file" ]; then
-                    COMMIT_MSG=$(git log --oneline --follow -1 -- "$file" | sed 's/^[^ ]* //')
-                    echo "- **$file**: $COMMIT_MSG"
+                    # Get commit messages for this file since the last user release
+                    if [ -z "${LAST_USER_RELEASE}" ]; then
+                      COMMIT_MSG=$(git log --oneline --follow -1 -- "$file" | sed 's/^[^ ]* //')
+                    else
+                      COMMIT_MSG=$(git log --oneline --follow -1 "${LAST_USER_RELEASE}"..HEAD -- "$file" | sed 's/^[^ ]* //')
+                    fi
+                    if [ -n "$COMMIT_MSG" ]; then
+                      echo "- **$file**: $COMMIT_MSG"
+                    fi
                   fi
                 done < <(printf '%s' "$CHANGED" | tr '\n' '\0')
                 echo ""
                 
-                # Get unique contributors since last tag
+                # Get unique contributors since last user release
                 echo "### Contributors:"
-                if [ -z "${LAST_TAG}" ]; then
+                if [ -z "${LAST_USER_RELEASE}" ]; then
                   CONTRIBUTORS=$(git log --pretty=format:"%an" HEAD | sort -u)
                 else
-                  CONTRIBUTORS=$(git log --pretty=format:"%an" "${LAST_TAG}"..HEAD | sort -u)
+                  CONTRIBUTORS=$(git log --pretty=format:"%an" "${LAST_USER_RELEASE}"..HEAD | sort -u)
                 fi
                 if [ -z "$CONTRIBUTORS" ]; then
                   echo "- (no contributors)"
