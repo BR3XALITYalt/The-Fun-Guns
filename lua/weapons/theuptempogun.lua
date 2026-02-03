@@ -43,6 +43,10 @@ SWEP.FiresUnderwater = false
 
 SWEP.ReloadSound = "sound/epicreload.wav" -- keep your reload file path if you like
 
+-- === NEW: single main volume variable ===
+-- 1.0 is the normal max volume. You can set >1.0 for extra punch (may clip).
+SWEP.MainVolume = 2.5
+
 -- Helper: find all files in sound/uptempo and subfolders
 local function FindUptempoSounds()
     local sounds = {}
@@ -65,18 +69,22 @@ local function FindUptempoSounds()
 end
 
 -- =========================
--- Echo implementation (no pitch, no delayed start)
+-- Echo implementation (no separate echo volume variable)
+-- Echo volume will be derived from SWEP.MainVolume (60% by default)
 -- =========================
-local ECHO_VOLUME = 0.45    -- starting volume for the echo (0..1)
 local ECHO_FADE_TIME = 1.2  -- seconds for the echo to fade out
 local ECHO_STOP_AFTER = 1.4 -- safety stop after this many seconds
+local ECHO_RELATIVE = 0.6   -- echo loudness relative to main (no separate var)
 
--- Play a sound attached to an entity with a simple immediate echo (no pitch, no delay)
-local function PlayWithEcho(ent, soundPath)
+-- Play a sound attached to an entity with a simple immediate echo (no pitch, no delayed start)
+-- now takes mainVolume as an argument (so the function doesn't need to grab the SWEP from ent)
+local function PlayWithEcho(ent, soundPath, mainVolume)
     if not IsValid(ent) then return end
+    local vol = mainVolume or 1.0
 
-    -- play main hit immediately (full volume)
-    ent:EmitSound(soundPath)
+    -- play main hit immediately (use the provided main volume)
+    -- EmitSound( soundName, soundLevel, pitch, volume )
+    ent:EmitSound(soundPath, 75, 100, vol)
 
     -- create an immediate overlapping copy that will fade out to simulate an echo/tail
     local echo = CreateSound(ent, soundPath)
@@ -84,14 +92,10 @@ local function PlayWithEcho(ent, soundPath)
 
     echo:Play()
 
-    -- instantly set the echo to a reduced volume (no pitch change)
+    -- set the echo to a reduced volume based on mainVolume (no separate echo variable)
     if echo.ChangeVolume then
-        echo:ChangeVolume(ECHO_VOLUME, 0) -- set volume immediately
-    end
-
-    -- fade the echo to silence over ECHO_FADE_TIME seconds
-    if echo.ChangeVolume then
-        echo:ChangeVolume(0, ECHO_FADE_TIME)
+        echo:ChangeVolume(vol * ECHO_RELATIVE, 0) -- set echo instantly relative to main
+        echo:ChangeVolume(0, ECHO_FADE_TIME)      -- fade echo out
     end
 
     -- stop/cleanup after a little longer than the fade to make sure it ends
@@ -103,7 +107,6 @@ local function PlayWithEcho(ent, soundPath)
 end
 
 -- Backwards compatibility: some previous code might call PlayWithReverb
--- We'll alias it so calls to PlayWithReverb won't error.
 PlayWithReverb = PlayWithEcho
 
 -- =========================
@@ -152,7 +155,8 @@ function SWEP:PrimaryAttack()
     -- choose a random uptempo sound and play it with the echo
     local snd = self.UptempoSounds[math.random(#self.UptempoSounds)]
     if snd then
-        PlayWithEcho(self.Owner, snd)
+        -- pass the SWEP.MainVolume in so the function can use it
+        PlayWithEcho(self.Owner, snd, self.MainVolume)
     end
 
     self.Owner:ViewPunch(Angle(rnda, rndb, rnda))
