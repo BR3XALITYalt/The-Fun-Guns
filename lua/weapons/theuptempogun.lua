@@ -64,6 +64,42 @@ local function FindUptempoSounds()
     return sounds
 end
 
+-- Echo configuration (no pitch changes, no delayed start)
+local ECHO_VOLUME = 0.45    -- starting volume for the echo (0..1)
+local ECHO_FADE_TIME = 1.2  -- seconds for the echo to fade out
+local ECHO_STOP_AFTER = 1.4 -- safety stop after this many seconds
+
+-- Play a sound attached to an entity with a simple immediate echo (no pitch, no delay)
+local function PlayWithEcho(ent, soundPath)
+    if not IsValid(ent) then return end
+
+    -- play main hit immediately (full volume)
+    ent:EmitSound(soundPath)
+
+    -- create an immediate overlapping copy that will fade out to simulate an echo/tail
+    local echo = CreateSound(ent, soundPath)
+    if not echo then return end
+
+    echo:Play()
+
+    -- instantly set the echo to a reduced volume (no pitch change)
+    if echo.ChangeVolume then
+        echo:ChangeVolume(ECHO_VOLUME, 0) -- set volume immediately
+    end
+
+    -- fade the echo to silence over ECHO_FADE_TIME seconds
+    if echo.ChangeVolume then
+        echo:ChangeVolume(0, ECHO_FADE_TIME)
+    end
+
+    -- stop/cleanup after a little longer than the fade to make sure it ends
+    timer.Simple(ECHO_STOP_AFTER, function()
+        if echo then
+            echo:Stop()
+        end
+    end)
+end
+
 function SWEP:Initialize()
     self:SetWeaponHoldType(self.HoldType)
 
@@ -104,10 +140,10 @@ function SWEP:PrimaryAttack()
     self:ShootEffects()
     self.Owner:FireBullets(bullet)
 
-    -- choose a random uptempo sound and play it
+    -- choose a random uptempo sound and play it with simulated reverb
     local snd = self.UptempoSounds[math.random(#self.UptempoSounds)]
     if snd then
-        self:EmitSound(snd)
+        PlayWithReverb(self.Owner, snd)
     end
 
     self.Owner:ViewPunch(Angle(rnda, rndb, rnda))
