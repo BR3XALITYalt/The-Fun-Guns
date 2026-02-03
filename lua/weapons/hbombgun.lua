@@ -51,7 +51,7 @@ SWEP.CSMuzzleFlashes = true
 -- 3 = Normal - Hard Force
 -- 4 = Rapid - Hard Force
 SWEP.NormalDelay = 0.5
-SWEP.RapidDelay = 0.001
+SWEP.RapidDelay = 0.01
 SWEP.HardForceMultiplier = 512 -- multiplies base Primary.Force for hard modes (10 * 3 = 30)
 SWEP.BaseVelocityNormal = 1500
 SWEP.BaseVelocityRapid = 1200
