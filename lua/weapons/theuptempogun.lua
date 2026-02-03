@@ -2,7 +2,7 @@ SWEP.PrintName = "The Uptempo Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "Plays a random uptempo kick so you can rave"
 SWEP.Instructions = "left click to BAMMMMM"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Other"
 SWEP.Spawnable= true
 SWEP.AdminOnly = false
 

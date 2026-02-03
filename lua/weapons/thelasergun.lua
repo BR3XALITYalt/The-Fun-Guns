@@ -2,7 +2,7 @@ SWEP.PrintName = "The Laser Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "Explodes entities when aimed at them"
 SWEP.Instructions = "LEFT CLICK: Fire laser | RIGHT CLICK: Cycle fire mode"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Destructive"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
 

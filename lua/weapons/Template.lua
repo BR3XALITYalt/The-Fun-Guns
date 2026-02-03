@@ -3,7 +3,7 @@ SWEP.PrintName = "The [Action Here] Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "Insert purpose here."
 SWEP.Instructions = "left click to [Action here]"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - [Catagory here]"
 SWEP.Spawnable= true
 SWEP.AdminOnly = false
 

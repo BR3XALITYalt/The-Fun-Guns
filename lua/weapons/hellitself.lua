@@ -3,7 +3,7 @@ SWEP.PrintName = "Hell Itself"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "shoot"
 SWEP.Instructions = "left click to shoot"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Other"
 SWEP.Spawnable= true
 SWEP.AdminOnly = false
 

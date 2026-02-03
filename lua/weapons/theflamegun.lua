@@ -2,7 +2,7 @@ SWEP.PrintName = "The Flame Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "Flame people(?)"
 SWEP.Instructions = "Left click to spray flame"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Destructive"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
 

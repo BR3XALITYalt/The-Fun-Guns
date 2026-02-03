@@ -3,7 +3,7 @@ SWEP.PrintName = "The Blast Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "One shot blasts anything."
 SWEP.Instructions = "left click to blast"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Guns"
 SWEP.Spawnable= true
 SWEP.AdminOnly = false
 

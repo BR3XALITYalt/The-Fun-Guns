@@ -3,7 +3,7 @@ SWEP.PrintName = "The Fast Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "Fastest gun around."
 SWEP.Instructions = "left click to shoot like the flash"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Guns"
 SWEP.Spawnable= true
 SWEP.AdminOnly = false
 

@@ -2,7 +2,7 @@ SWEP.PrintName = "HBOMB Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "shoots helecopter bombs"
 SWEP.Instructions = "LEFT CLICK: Throw hbomb | RIGHT CLICK: Cycle fire mode"
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Destructive"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
 

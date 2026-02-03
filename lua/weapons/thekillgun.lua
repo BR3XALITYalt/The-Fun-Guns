@@ -3,7 +3,7 @@ SWEP.PrintName = "The Kill Gun"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "One shot ends anything."
 SWEP.Instructions = "left click to destroy."
-SWEP.Category = "The Fun Guns"
+SWEP.Category = "The Fun Guns - Guns"
 SWEP.Spawnable= true
 SWEP.AdminOnly = false
 
