@@ -8,7 +8,7 @@ SWEP.AdminOnly = false
 
 SWEP.Base = "weapon_base"
 
-SWEP.Primary.Damage = 10
+SWEP.Primary.Damage = 2048
 SWEP.Primary.TakeAmmo = 1
 SWEP.Primary.ClipSize = 2147483647
 SWEP.Primary.Ammo = "Pistol"
