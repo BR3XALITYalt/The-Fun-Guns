@@ -41,7 +41,7 @@ SWEP.UseHands           = true
 
 SWEP.HoldType = "Pistol" 
 
-SWEP.FiresUnderwater = talse
+SWEP.FiresUnderwater = false
 
 SWEP.ReloadSound = "sound/epicreload.wav"
 
