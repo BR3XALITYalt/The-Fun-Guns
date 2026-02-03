@@ -8,7 +8,7 @@ SWEP.AdminOnly = false
 
 SWEP.Base = "weapon_base"
 
-local ShootSound = Sound("Weapon_Pistol.Single")
+local ShootSound = Sound("shoot/short.mp3")
 local RapidFireSound = Sound("buttons/button14.wav")
 
 SWEP.Primary.Damage = 0

@@ -9,7 +9,7 @@ SWEP.AdminOnly = false
 
 SWEP.Base = "weapon_base"
 
-local ShootSound = Sound("Weapon_Pistol.Single")
+local ShootSound = Sound("shoot/short.mp3")
 SWEP.Primary.Damage = 128 --The amount of damage will the weapon do
 SWEP.Primary.TakeAmmo = 1 -- How much ammo will be taken per shot
 SWEP.Primary.ClipSize = 2147483647  -- How much bullets are in the mag
