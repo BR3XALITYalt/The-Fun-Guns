@@ -136,32 +136,43 @@ end
 function SWEP:PrimaryAttack()
     if not self:CanPrimaryAttack() then return end
 
+    -- avoid double-prediction issues: visual effects can be clientside but FireBullets should run on server
+    if CLIENT then
+        -- still play view punch / animations clientside for responsiveness
+        self:ShootEffects()
+        self.Owner:ViewPunch(Angle(self.Primary.Recoil * -1, self.Primary.Recoil * math.random(-1,1), 0))
+        return
+    end
+
+    -- SERVER: create bullets
     local bullet = {}
-    bullet.Num = self.Primary.NumberofShots
+    bullet.Num = math.max(1, self.Primary.NumberofShots or 1)
     bullet.Src = self.Owner:GetShootPos()
     bullet.Dir = self.Owner:GetAimVector()
-    bullet.Spread = Vector(self.Primary.Spread * 0.1, self.Primary.Spread * 0.1, 0)
-    bullet.Tracer = 1
-    bullet.Force = self.Primary.Force
-    bullet.Damage = self.Primary.Damage
-    bullet.AmmoType = self.Primary.Ammo
+    -- smaller spread for more visible tracers while debugging; adjust as desired
+    local spread_val = (self.Primary.Spread or 1) * 0.1
+    bullet.Spread = Vector(spread_val, spread_val, 0)
+    bullet.Tracer = 1               -- every bullet will attempt a tracer
+    bullet.TracerName = "Tracer"    -- explicit tracer effect (common default)
+    bullet.Force = self.Primary.Force or 1
+    bullet.Damage = self.Primary.Damage or 10
+    bullet.AmmoType = self.Primary.Ammo or ""
 
-    local rnda = self.Primary.Recoil * -1
-    local rndb = self.Primary.Recoil * math.random(-1, 1)
-
-    self:ShootEffects()
     self.Owner:FireBullets(bullet)
 
-    -- choose a random uptempo sound and play it with the echo
-    local snd = self.UptempoSounds[math.random(#self.UptempoSounds)]
+    -- play server-side sound/effects attached to owner (your echo function is okay)
+    local snd = self.UptempoSounds and self.UptempoSounds[math.random(#self.UptempoSounds)] or nil
     if snd then
-        -- pass the SWEP.MainVolume in so the function can use it
         PlayWithEcho(self.Owner, snd, self.MainVolume)
     end
 
-    self.Owner:ViewPunch(Angle(rnda, rndb, rnda))
-    self:TakePrimaryAmmo(self.Primary.TakeAmmo)
-    self:SetNextPrimaryFire(CurTime() + self.Primary.Delay)
+    -- consume ammo & set next fire (server)
+    self:TakePrimaryAmmo(self.Primary.TakeAmmo or 1)
+    self:SetNextPrimaryFire(CurTime() + (self.Primary.Delay or 0.1))
+
+    -- network a little visual feedback to the shooter (clients)
+    self:SendWeaponAnim(ACT_VM_PRIMARYATTACK)
+    self.Owner:SetAnimation(PLAYER_ATTACK1)
 end
 
 function SWEP:SecondaryAttack()
