@@ -8,13 +8,13 @@ SWEP.AdminOnly = false
 
 SWEP.Base = "weapon_base"
 
-SWEP.Primary.Damage = 2048
+SWEP.Primary.Damage = 2147483647
 SWEP.Primary.TakeAmmo = 1
 SWEP.Primary.ClipSize = 2147483647
 SWEP.Primary.Ammo = "Pistol"
 SWEP.Primary.DefaultClip = 2147483647
-SWEP.Primary.Spread = 0
-SWEP.Primary.NumberofShots = 1
+SWEP.Primary.Spread = 32
+SWEP.Primary.NumberofShots = 128
 SWEP.Primary.Automatic = true
 SWEP.Primary.Recoil = 0
 SWEP.Primary.Delay = 0.3428571342857134285713428571
