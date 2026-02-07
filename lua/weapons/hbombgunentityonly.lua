@@ -1,7 +1,7 @@
 SWEP.PrintName = "HBOMB Gun (Entity Only)"
 SWEP.Author = "BR3XALITY"
 SWEP.Purpose = "shoots helicopter bombs that only activate when touched by an entity."
-SWEP.Instructions = "LEFT CLICK: Throw hbomb | RIGHT CLICK: Cycle fire mode"
+SWEP.Instructions = "LEFT CLICK: Throw hbomb | RIGHT CLICK: Cycle fire mode | MIDDLE CLICK: Configure HBomb defaults"
 SWEP.Category = "The Fun Guns - Destructive"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
@@ -57,6 +57,55 @@ SWEP.BaseVelocityNormal = 1500
 SWEP.BaseVelocityRapid = 1200
 SWEP.HardVelocityNormal = 3000
 SWEP.HardVelocityRapid = 2400
+
+-- networking strings and server-side handlers
+if SERVER then
+    util.AddNetworkString("HBOMB_RequestConfig")
+    util.AddNetworkString("HBOMB_ConfigValues")
+    util.AddNetworkString("HBOMB_SendConfig")
+    util.AddNetworkString("HBOMB_ConfigUpdated")
+
+    -- server-side config table (persistent while server runs)
+    if not HBOMBConfig then
+        HBOMBConfig = {
+            Radius = 350,
+            Damage = 350,
+            AutoRemoveTime = 30
+        }
+    end
+
+    -- send current config to requesting client
+    net.Receive("HBOMB_RequestConfig", function(len, ply)
+        net.Start("HBOMB_ConfigValues")
+        net.WriteFloat(HBOMBConfig.Radius)
+        net.WriteFloat(HBOMBConfig.Damage)
+        net.WriteFloat(HBOMBConfig.AutoRemoveTime)
+        net.Send(ply)
+    end)
+
+    -- receive updated config from a client
+    net.Receive("HBOMB_SendConfig", function(len, ply)
+        local r = math.Clamp(net.ReadFloat(), 0, 5000)
+        local d = math.Clamp(net.ReadFloat(), 0, 10000)
+        local t = math.Clamp(net.ReadFloat(), 0, 600)
+
+        HBOMBConfig.Radius = r
+        HBOMBConfig.Damage = d
+        HBOMBConfig.AutoRemoveTime = t
+
+        -- notify all clients visually
+        net.Start("HBOMB_ConfigUpdated")
+        net.WriteFloat(r)
+        net.WriteFloat(d)
+        net.WriteFloat(t)
+        net.Broadcast()
+
+        -- server console/chat notice
+        for _, pl in ipairs(player.GetAll()) do
+            pl:ChatPrint(string.format("HBomb config updated: Radius=%d Damage=%d AutoRemove=%d", r, d, t))
+        end
+    end)
+end
 
 function SWEP:SetupDataTables()
     -- store an int for the current fire mode (1..4)
@@ -182,6 +231,7 @@ function SWEP:CanSecondaryAttack()
 end
 
 function SWEP:Reload()
+    -- Reload still plays reload sound
     self:EmitSound(self.ReloadSound)
     self:DefaultReload(ACT_VM_RELOAD)
 end
@@ -217,7 +267,21 @@ function SWEP:DrawHUD()
     surface.DrawText("DELAY: " .. string.format("%.2f", delay) .. "s")
 end
 
+-- Replaced Think: keeps your muzzle FX logic and adds middle-mouse open-config (clientside UI)
 function SWEP:Think()
+    -- CLIENT: detect middle mouse and request config UI
+    if CLIENT and IsValid(self.Owner) and self.Owner == LocalPlayer() then
+        -- Use input.IsMouseDown to check middle mouse
+        if input.IsMouseDown(MOUSE_MIDDLE) and not self._HBMiddlePressed then
+            self._HBMiddlePressed = true
+            -- request server config (server will respond with HBOMB_ConfigValues)
+            net.Start("HBOMB_RequestConfig")
+            net.SendToServer()
+        elseif not input.IsMouseDown(MOUSE_MIDDLE) then
+            self._HBMiddlePressed = false
+        end
+    end
+
     -- keep muzzle FX chance for rapid modes like before
     local mode = self:GetFireMode() or 1
     if (modeIsRapid(mode) and self:GetNextPrimaryFire() > CurTime() - 0.1) then
@@ -229,4 +293,87 @@ function SWEP:Think()
             util.Effect("MuzzleEffect", effectdata)
         end
     end
+end
+
+-- CLIENTSIDE: UI + net receivers (Derma)
+if CLIENT then
+    -- open a simple Derma window with sliders
+    local function OpenHBombConfigMenu(radius, damage, autoRemove)
+        if IsValid(HBombConfigFrame) then HBombConfigFrame:Remove() end
+
+        HBombConfigFrame = vgui.Create("DFrame")
+        HBombConfigFrame:SetTitle("HBomb Configuration")
+        HBombConfigFrame:SetSize(420,220)
+        HBombConfigFrame:Center()
+        HBombConfigFrame:MakePopup()
+
+        local sRadius = vgui.Create("DNumSlider", HBombConfigFrame)
+        sRadius:Dock(TOP)
+        sRadius:SetTall(40)
+        sRadius:SetText("Explosion Radius")
+        sRadius:SetMin(0)
+        sRadius:SetMax(5000)
+        sRadius:SetDecimals(0)
+        sRadius:SetValue(radius or 350)
+
+        local sDamage = vgui.Create("DNumSlider", HBombConfigFrame)
+        sDamage:Dock(TOP)
+        sDamage:SetTall(40)
+        sDamage:SetText("Explosion Damage")
+        sDamage:SetMin(0)
+        sDamage:SetMax(10000)
+        sDamage:SetDecimals(0)
+        sDamage:SetValue(damage or 350)
+
+        local sAuto = vgui.Create("DNumSlider", HBombConfigFrame)
+        sAuto:Dock(TOP)
+        sAuto:SetTall(40)
+        sAuto:SetText("Auto Remove Time (seconds)")
+        sAuto:SetMin(0)
+        sAuto:SetMax(600)
+        sAuto:SetDecimals(0)
+        sAuto:SetValue(autoRemove or 30)
+
+        local btnPanel = vgui.Create("DPanel", HBombConfigFrame)
+        btnPanel:Dock(BOTTOM)
+        btnPanel:SetTall(32)
+
+        local applyBtn = vgui.Create("DButton", btnPanel)
+        applyBtn:Dock(RIGHT)
+        applyBtn:SetWide(120)
+        applyBtn:SetText("Apply")
+        applyBtn.DoClick = function()
+            net.Start("HBOMB_SendConfig")
+            net.WriteFloat(sRadius:GetValue())
+            net.WriteFloat(sDamage:GetValue())
+            net.WriteFloat(sAuto:GetValue())
+            net.SendToServer()
+            HBombConfigFrame:Close()
+        end
+
+        local cancelBtn = vgui.Create("DButton", btnPanel)
+        cancelBtn:Dock(RIGHT)
+        cancelBtn:SetWide(120)
+        cancelBtn:SetText("Cancel")
+        cancelBtn.DoClick = function()
+            HBombConfigFrame:Close()
+        end
+    end
+
+    -- receive config from server and open UI
+    net.Receive("HBOMB_ConfigValues", function()
+        local r = net.ReadFloat()
+        local d = net.ReadFloat()
+        local t = net.ReadFloat()
+        OpenHBombConfigMenu(r, d, t)
+    end)
+
+    -- receive broadcast when config changed and notify locally
+    net.Receive("HBOMB_ConfigUpdated", function()
+        local r = net.ReadFloat()
+        local d = net.ReadFloat()
+        local t = net.ReadFloat()
+        Derma_Message(string.format("HBomb defaults updated:\nRadius=%d\nDamage=%d\nAutoRemove=%d", r, d, t),
+                      "HBomb Updated", "OK")
+    end)
 end
