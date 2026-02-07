@@ -202,7 +202,7 @@ jobs:
           release_name: The Fun Guns ${{ env.RELEASE_TAG }}
           body_path: ${{ env.RELEASE_BODY_FILE }}
           draft: false
-          prerelease: ${{ env.IS_PRERELEASE }}
+          prerelease: ${{ github.event_name != 'workflow_dispatch' }}
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
