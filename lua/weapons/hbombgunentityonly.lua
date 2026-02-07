@@ -1,6 +1,6 @@
 SWEP.PrintName = "HBOMB Gun (Entity Only)"
 SWEP.Author = "BR3XALITY"
-SWEP.Purpose = "shoots helicopter bombs that only explode when touched by an entity"
+SWEP.Purpose = "shoots helicopter bombs that only activate when touched by an entity."
 SWEP.Instructions = "LEFT CLICK: Throw hbomb | RIGHT CLICK: Cycle fire mode"
 SWEP.Category = "The Fun Guns - Destructive"
 SWEP.Spawnable = true
@@ -57,123 +57,6 @@ SWEP.BaseVelocityNormal = 1500
 SWEP.BaseVelocityRapid = 1200
 SWEP.HardVelocityNormal = 3000
 SWEP.HardVelocityRapid = 2400
-
--- Custom grenade entity that only explodes on touch
-if SERVER then
-    local ENT = {}
-    ENT.Type = "anim"
-    ENT.Base = "base_gmodentity"
-    
-    function ENT:Initialize()
-        self:SetModel("models/Combine_Helicopter/helicopter_bomb01.mdl")
-        self:SetMoveType(MOVETYPE_VPHYSICS)
-        self:SetSolid(SOLID_VPHYSICS)
-        self:PhysicsInit(SOLID_VPHYSICS)
-        
-        local phys = self:GetPhysicsObject()
-        if IsValid(phys) then
-            phys:Wake()
-            phys:SetMass(50)
-        end
-        
-        -- Disable default explosion behavior
-        self.NextExplodeTime = nil
-        self.HasExploded = false
-        self.TouchExplode = true
-        
-        -- Safety timer (remove after 30 seconds if not touched)
-        self:SetNWFloat("SpawnTime", CurTime())
-        timer.Simple(30, function()
-            if IsValid(self) then
-                self:Remove()
-            end
-        end)
-    end
-    
-    function ENT:PhysicsCollide(data, phys)
-        -- Check if we hit an entity (not world)
-        if IsValid(data.HitEntity) and data.HitEntity:GetClass() ~= "worldspawn" then
-            self:Explode()
-        end
-    end
-    
-    function ENT:Touch(ent)
-        -- Only explode once and only if touching a valid entity (not world or self)
-        if not self.HasExploded and self.TouchExplode and IsValid(ent) and ent ~= self then
-            -- Don't explode on owner for a short time to prevent self-damage
-            local owner = self:GetOwner()
-            if IsValid(owner) and ent == owner then
-                local spawnTime = self:GetNWFloat("SpawnTime", CurTime())
-                if CurTime() - spawnTime < 0.5 then
-                    return
-                end
-            end
-            
-            self:Explode()
-        end
-    end
-    
-    function ENT:Explode()
-        if self.HasExploded then return end
-        self.HasExploded = true
-        
-        -- Create explosion effect
-        local effectdata = EffectData()
-        effectdata:SetOrigin(self:GetPos())
-        effectdata:SetMagnitude(8) -- Size of explosion
-        effectdata:SetScale(1) -- Duration
-        effectdata:SetRadius(8) -- Ring size
-        util.Effect("HelicopterMegaBomb", effectdata)
-        
-        -- Sound
-        self:EmitSound(Sound("BaseExplosionEffect.Sound"))
-        
-        -- Damage in radius
-        local pos = self:GetPos()
-        for _, ent in pairs(ents.FindInSphere(pos, 300)) do
-            if IsValid(ent) and ent:IsPlayer() or ent:IsNPC() or ent:GetClass() == "prop_physics" then
-                local dmginfo = DamageInfo()
-                dmginfo:SetDamage(500)
-                dmginfo:SetDamageType(DMG_BLAST)
-                dmginfo:SetAttacker(IsValid(self:GetOwner()) and self:GetOwner() or self)
-                dmginfo:SetInflictor(self)
-                dmginfo:SetDamagePosition(pos)
-                
-                -- Calculate distance falloff
-                local dist = pos:Distance(ent:GetPos())
-                if dist < 300 then
-                    local scale = 1 - (dist / 300)
-                    dmginfo:SetDamage(500 * scale)
-                    ent:TakeDamageInfo(dmginfo)
-                end
-                
-                -- Apply force to props
-                if ent:GetClass() == "prop_physics" then
-                    local phys = ent:GetPhysicsObject()
-                    if IsValid(phys) then
-                        local dir = (ent:GetPos() - pos):GetNormalized()
-                        phys:ApplyForceCenter(dir * 5000 * scale)
-                    end
-                end
-            end
-        end
-        
-        -- Remove the grenade
-        self:Remove()
-    end
-    
-    function ENT:Think()
-        -- Cleanup check
-        if self:GetNWFloat("SpawnTime", 0) + 30 < CurTime() then
-            self:Remove()
-        end
-        
-        self:NextThink(CurTime() + 1)
-        return true
-    end
-    
-    scripted_ents.Register(ENT, "grenade_helicopter_touch")
-end
 
 function SWEP:SetupDataTables()
     -- store an int for the current fire mode (1..4)
@@ -232,8 +115,7 @@ function SWEP:PrimaryAttack()
                          0)
     aimVec = (aimVec + spread):GetNormalized()
 
-    -- Create custom touch grenade instead of regular grenade_helicopter
-    local grenade = ents.Create("grenade_helicopter_touch")
+    local grenade = ents.Create("sleeping_hbomb")
     if (!IsValid(grenade)) then return end
     grenade:SetPos(spawnPos + aimVec * 16)
     grenade:SetAngles(aimVec:Angle())
@@ -261,7 +143,12 @@ function SWEP:PrimaryAttack()
         end
     end
 
-    -- cleanup is handled by the entity itself
+    -- cleanup
+    timer.Simple(30, function()
+        if (IsValid(grenade)) then
+            grenade:Remove()
+        end
+    end)
 end
 
 function SWEP:SecondaryAttack()
