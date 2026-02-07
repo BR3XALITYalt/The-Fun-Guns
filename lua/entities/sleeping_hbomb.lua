@@ -7,26 +7,27 @@ ENT.Author = "BR3XALITY"
 ENT.Spawnable = false
 ENT.AdminOnly = false
 
+-- ===== CONFIG =====
+ENT.ExplosionRadius = 550   -- how big the blast is
+ENT.ExplosionDamage = 500   -- how strong the blast is
+-- ==================
+
 if SERVER then
 
     function ENT:Initialize()
-        -- model matching the vanilla helibomb; change if you want a different skin
         self:SetModel("models/Combine_Helicopter/helicopter_bomb01.mdl")
-        self:PhysicsInit(SOLID_VPHYSICS)
-        self:SetMoveType(MOVETYPE_VPHYSICS)
-        self:SetSolid(SOLID_VPHYSICS)
-        self:SetUseType(SIMPLE_USE)
 
-        local phys = self:GetPhysicsObject()
-        if IsValid(phys) then
-            phys:Wake()
-            phys:SetMass(10)
-        end
+        -- No physical collision, but still detects touches
+        self:PhysicsInit(SOLID_NONE)
+        self:SetMoveType(MOVETYPE_NONE)
+        self:SetSolid(SOLID_BBOX)
+        self:SetCollisionGroup(COLLISION_GROUP_IN_VEHICLE)
+        self:SetTrigger(true) -- this is the magic
 
         -- guard so we don't explode twice
         self._Exploded = false
 
-        -- safety: auto-remove after 30s if never touched (no explosion)
+        -- safety: auto-remove after 30s if never touched
         timer.Simple(30, function()
             if IsValid(self) and not self._Exploded then
                 self:Remove()
@@ -34,7 +35,6 @@ if SERVER then
         end)
     end
 
-    -- central explode routine
     function ENT:Explode(toucher)
         if self._Exploded then return end
         self._Exploded = true
@@ -47,33 +47,28 @@ if SERVER then
         eff:SetOrigin(pos)
         util.Effect("HelicopterMegaBomb", eff, true, true)
 
-        -- replace this sound path with your preferred explosion sound if you like
-        self:EmitSound("BaseExplosionEffect.Sound" or "ambient/explosions/explode_4.wav", 140, 100)
+        self:EmitSound("ambient/explosions/explode_4.wav", 140, 100)
 
-        -- damage: attacker = owner, radius = 200, damage = 200 (tune to taste)
-        util.BlastDamage(self, owner, pos, 200, 200)
+        -- use the variables here
+        util.BlastDamage(
+            self,
+            owner,
+            pos,
+            self.ExplosionRadius,
+            self.ExplosionDamage
+        )
 
-        -- remove immediately after explosion
-        timer.Simple(0, function()
-            if IsValid(self) then self:Remove() end
-        end)
+        self:Remove()
     end
 
-    -- explode when touched by an entity (players, NPCs, props, vehicles, etc.)
     function ENT:Touch(ent)
         if not IsValid(ent) then return end
-
-        -- ignore the worldspawn
         if ent:GetClass() == "worldspawn" then return end
-
-        -- optional: ignore other sleeping_hbombs to prevent chain-triggering
         if ent:GetClass() == self:GetClass() then return end
 
-        -- explode on any other entity touch
         self:Explode(ent)
     end
 
-    -- optional: explode if damaged
     function ENT:OnTakeDamage(dmginfo)
         self:Explode(dmginfo:GetAttacker())
     end
