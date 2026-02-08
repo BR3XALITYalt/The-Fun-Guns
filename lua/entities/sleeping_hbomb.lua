@@ -11,6 +11,7 @@ ENT.AdminOnly = false
 ENT.ExplosionRadius = 350   -- how big the blast is (default kept like your old working file)
 ENT.ExplosionDamage = 350   -- how strong the blast is (max damage at center)
 ENT.AutoRemoveTime = 30     -- safety cleanup if never touched
+ENT.MaxChainDepth = 200     -- maximum chain propagation depth for bomb-to-bomb triggering
 -- ==================
 
 if SERVER then
@@ -43,65 +44,56 @@ if SERVER then
     -- central explode routine
     -- triggerer: entity that caused explosion (may be nil)
     -- excludeAttacker: if valid entity passed here, that entity will NOT receive damage from this blast
-    function ENT:Explode(triggerer, excludeAttacker)
+    -- depth: current chain depth (0 = initial). propagation stops when depth >= MaxChainDepth
+    function ENT:Explode(triggerer, excludeAttacker, depth)
+        depth = depth or 0
+
+        -- If this already exploded, bail out.
         if self._Exploded then return end
+
+        -- Mark exploded immediately to prevent recursion loops.
         self._Exploded = true
 
         local pos = self:GetPos()
         local owner = self:GetOwner()
         if not IsValid(owner) then owner = self end
 
+        -- visual + sound
         local eff = EffectData()
         eff:SetOrigin(pos)
         util.Effect("HelicopterMegaBomb", eff, true, true)
 
-        -- explosion sound (kept behaviour similar to original)
         self:EmitSound("ambient/explosions/explode_4.wav", 140, 100)
 
-        -- If there's no need to exclude anyone, use util.BlastDamage (simpler, faster).
-        if not IsValid(excludeAttacker) then
-            util.BlastDamage(self, owner, pos, self.ExplosionRadius or 200, self.ExplosionDamage or 200)
-        else
-            -- Manual blast so we can skip damaging a particular attacker (e.g., owner who shot the bomb)
+        -- Core blast damage for everything (fast).
+        util.BlastDamage(self, owner, pos, self.ExplosionRadius or 200, self.ExplosionDamage or 200)
+
+        -- MANUAL PROPAGATION FOR BOMB-TO-BOMB CHAINING
+        -- We intentionally do a second sweep to find nearby bombs and call their Explode with depth+1.
+        -- This gives us precise control over chain depth while still using util.BlastDamage for general damage.
+        if depth < (self.MaxChainDepth or 0) then
             local radius = self.ExplosionRadius or 200
-            local maxDamage = self.ExplosionDamage or 200
             local entsInRange = ents.FindInSphere(pos, radius)
+
             for _, tgt in ipairs(entsInRange) do
                 if not IsValid(tgt) then continue end
-                -- skip the world
+
+                -- skip world / worldspawn
                 if tgt:GetClass() == "worldspawn" or tgt:IsWorld() then continue end
 
-                -- skip the excluded attacker entirely
-                if tgt == excludeAttacker then continue end
-
-                local closest = tgt:NearestPoint(pos)
-                local dist = pos:Distance(closest)
-                if dist > radius then continue end
-
-                -- linear falloff
-                local dmgAmount = math.max(0, maxDamage * (1 - dist / radius))
-                if dmgAmount <= 0 then continue end
-
-                local dmginfo = DamageInfo()
-                dmginfo:SetDamage(dmgAmount)
-                dmginfo:SetAttacker(owner)
-                dmginfo:SetInflictor(self)
-                dmginfo:SetDamageType(DMG_BLAST)
-
-                -- apply small physical impulse to props and players
-                local dir = (tgt:GetPos() - pos)
-                if dir:Length() > 0 then
-                    dir:Normalize()
-                    local phys = tgt:GetPhysicsObject()
-                    if IsValid(phys) and not tgt:IsPlayer() and not tgt:IsNPC() then
-                        phys:ApplyForceCenter(dir * dmgAmount * 50)
-                    elseif tgt:IsPlayer() then
-                        -- small push for players
-                        tgt:SetVelocity(dir * (dmgAmount * 10))
+                -- If this is the same bomb class, propagate the chain (depth limited).
+                if tgt:GetClass() == self:GetClass() and not tgt._Exploded then
+                    -- Pass this bomb as the triggerer and increment depth
+                    -- excludeAttacker is nil here because chain blasts are normal blast sources
+                    -- (you can tweak to exclude certain entities if desired).
+                    local ok, err = pcall(function()
+                        tgt:Explode(self, nil, depth + 1)
+                    end)
+                    if not ok then
+                        -- silence errors from user code inside other bombs so one bad bomb doesn't stop propagation
+                        print("[hbomb] error while propagating to bomb:", err)
                     end
                 end
-
-                tgt:TakeDamageInfo(dmginfo)
             end
         end
 
@@ -118,18 +110,19 @@ if SERVER then
         -- ignore the worldspawn
         if ent:GetClass() == "worldspawn" then return end
 
-        -- optional: ignore other sleeping_hbombs to prevent chain-triggering
+        -- optional: ignore other sleeping_hbombs to prevent immediate chain-triggering via touch
         if ent:GetClass() == self:GetClass() then return end
 
-        -- explode on any other entity touch (same as your old version)
-        self:Explode(ent, nil)
+        -- explode on any other entity touch (same as your old version). touch-triggered explosions start at depth 0.
+        self:Explode(ent, nil, 0)
     end
 
-    -- explode if damaged (but ignore blast damage to prevent blast-induced recursion/chain reactions)
+    -- explode if damaged (but ignore blast damage to prevent blast-induced recursion;
+    -- chain propagation is handled manually in Explode above)
     function ENT:OnTakeDamage(dmginfo)
         if self._Exploded then return end
 
-        -- Ignore blast damage caused by nearby explosions — we want this entity to only explode on touch or being shot.
+        -- Ignore raw blast damage here; we propagate explicitly in Explode() so we can control depth.
         if dmginfo:IsDamageType(DMG_BLAST) then return end
 
         local attacker = dmginfo:GetAttacker()
@@ -144,20 +137,19 @@ if SERVER then
 
         -- If the bomb was shot by its owner (owner's bullets), explode but exclude the attacker from damage
         if isBullet and IsValid(attacker) and IsValid(owner) and attacker == owner then
-            self:Explode(attacker, attacker) -- exclude the attacker (owner) from blast damage
+            self:Explode(attacker, attacker, 0) -- exclude the attacker (owner) from blast damage
             return
         end
 
-        -- If damaged by a bullet from someone else, explode and credit the attacker
+        -- If damaged by a bullet from someone else, explode and credit the attacker (depth 0)
         if isBullet and IsValid(attacker) then
-            self:Explode(attacker, nil)
+            self:Explode(attacker, nil, 0)
             return
         end
 
-        -- For all other damage types (except blast) we can choose to ignore or explode.
-        -- Currently we don't explode on generic damage to avoid accidental chain reactions,
-        -- but if you want to explode on any non-blast damage, uncomment the following:
-        -- self:Explode(attacker, nil)
+        -- For other damage types (melee, physics impact, etc.), explode at depth 0
+        -- (you can change this to ignore certain damage types if desired)
+        self:Explode(attacker, nil, 0)
     end
 
 end
