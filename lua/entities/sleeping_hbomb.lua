@@ -56,7 +56,7 @@ if SERVER then
         util.Effect("HelicopterMegaBomb", eff, true, true)
 
         -- explosion sound (kept behaviour similar to original)
-        self:EmitSound("BaseExplosionEffect.Sound" or "ambient/explosions/explode_4.wav", 140, 100)
+        self:EmitSound("ambient/explosions/explode_4.wav", 140, 100)
 
         -- If there's no need to exclude anyone, use util.BlastDamage (simpler, faster).
         if not IsValid(excludeAttacker) then
@@ -68,7 +68,8 @@ if SERVER then
             local entsInRange = ents.FindInSphere(pos, radius)
             for _, tgt in ipairs(entsInRange) do
                 if not IsValid(tgt) then continue end
-                if tgt:IsWorld() then continue end
+                -- skip the world
+                if tgt:GetClass() == "worldspawn" or tgt:IsWorld() then continue end
 
                 -- skip the excluded attacker entirely
                 if tgt == excludeAttacker then continue end
@@ -92,7 +93,7 @@ if SERVER then
                 if dir:Length() > 0 then
                     dir:Normalize()
                     local phys = tgt:GetPhysicsObject()
-                    if IsValid(phys) and phys:IsValid() and not tgt:IsPlayer() and not tgt:IsNPC() then
+                    if IsValid(phys) and not tgt:IsPlayer() and not tgt:IsNPC() then
                         phys:ApplyForceCenter(dir * dmgAmount * 50)
                     elseif tgt:IsPlayer() then
                         -- small push for players
@@ -124,9 +125,12 @@ if SERVER then
         self:Explode(ent, nil)
     end
 
-    -- explode if damaged
+    -- explode if damaged (but ignore blast damage to prevent blast-induced recursion/chain reactions)
     function ENT:OnTakeDamage(dmginfo)
         if self._Exploded then return end
+
+        -- Ignore blast damage caused by nearby explosions — we want this entity to only explode on touch or being shot.
+        if dmginfo:IsDamageType(DMG_BLAST) then return end
 
         local attacker = dmginfo:GetAttacker()
 
@@ -144,8 +148,16 @@ if SERVER then
             return
         end
 
-        -- otherwise explode normally, passing attacker as triggerer (keeps credit attribution similar to old)
-        self:Explode(attacker, nil)
+        -- If damaged by a bullet from someone else, explode and credit the attacker
+        if isBullet and IsValid(attacker) then
+            self:Explode(attacker, nil)
+            return
+        end
+
+        -- For all other damage types (except blast) we can choose to ignore or explode.
+        -- Currently we don't explode on generic damage to avoid accidental chain reactions,
+        -- but if you want to explode on any non-blast damage, uncomment the following:
+        -- self:Explode(attacker, nil)
     end
 
 end
