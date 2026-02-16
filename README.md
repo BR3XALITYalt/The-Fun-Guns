@@ -18,3 +18,13 @@ note: i recommend you use the latest pre-release (sometimes hidden under main re
 
 > the guns are fun
 - [ItsBr0dyy](https://www.itsbr0dyy.dev/)
+
+## Star History
+
+<a href="https://www.star-history.com/#BR3XALITYalt/The-Fun-Guns&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=BR3XALITYalt/The-Fun-Guns&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=BR3XALITYalt/The-Fun-Guns&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=BR3XALITYalt/The-Fun-Guns&type=date&legend=top-left" />
+ </picture>
+</a>
